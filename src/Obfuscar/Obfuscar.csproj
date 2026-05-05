@@ -35,9 +35,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Logging" />
     <PackageReference Include="NuGet.Versioning" />
-    <PackageReference Include="System.Reflection.Metadata" Condition="'$(TargetFramework)' == 'net462'"> 
-      <PrivateAssets>all</PrivateAssets>
-    </PackageReference>
+    <PackageReference Include="System.Reflection.Metadata" Condition="'$(TargetFramework)' == 'net462'" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="System.Runtime.Caching" />
     <PackageReference Include="System.ValueTuple" Condition="'$(TargetFramework)' == 'net462'">
