@@ -26,6 +26,7 @@
 
 using System.Collections.Generic;
 using System.IO;
+using Obfuscar;
 using Xunit;
 
 namespace ObfuscarTests
@@ -186,6 +187,49 @@ namespace ObfuscarTests
             };
 
             CheckProperties(Path.Combine(outputPath, "AssemblyWithProperties.dll"), 1, expected, notExpected);
+        }
+
+        [Fact]
+        public void CheckPublicPropOnInternalClassIsRenamed()
+        {
+            // Regression test for issue #559: a public property declared on an internal class
+            // is not part of the externally-visible API surface and must be renamed when
+            // HidePrivateApi=true, even though KeepPublicApi=true.
+            // A public property on a public class must still be preserved.
+            string inputPath = TestHelper.InputPath;
+            string outputPath = TestHelper.OutputPath;
+            string xml = string.Format(
+                @"<?xml version='1.0'?>" +
+                @"<Obfuscator>" +
+                @"<Var name='InPath' value='{0}' />" +
+                @"<Var name='OutPath' value='{1}' />" +
+                @"<Var name='KeepPublicApi' value='true' />" +
+                @"<Var name='HidePrivateApi' value='true' />" +
+                @"<Module file='$(InPath){2}AssemblyWithInternalClassPublicProp.dll' />" +
+                @"</Obfuscator>", inputPath, outputPath, Path.DirectorySeparatorChar);
+
+            var obfuscator = TestHelper.BuildAndObfuscate("AssemblyWithInternalClassPublicProp", string.Empty, xml);
+            var map = obfuscator.Mapping;
+
+            var inAssmDef = AssemblyDefinition.ReadAssembly(Path.Combine(inputPath, "AssemblyWithInternalClassPublicProp.dll"));
+
+            // Public property on internal class — must be renamed (not part of public API)
+            var internalType = inAssmDef.MainModule.GetType("TestClasses.InternalClassWithPublicProp");
+            foreach (var prop in internalType.Properties)
+            {
+                var propEntry = map.GetProperty(new PropertyKey(new TypeKey(internalType), prop));
+                Assert.True(propEntry.Status == ObfuscationStatus.Renamed,
+                    $"Property '{prop.Name}' on internal class should be renamed, got: {propEntry.Status} ({propEntry.StatusText})");
+            }
+
+            // Public property on public class — must be preserved (is part of public API)
+            var publicType = inAssmDef.MainModule.GetType("TestClasses.PublicClassWithPublicProp");
+            foreach (var prop in publicType.Properties)
+            {
+                var propEntry = map.GetProperty(new PropertyKey(new TypeKey(publicType), prop));
+                Assert.True(propEntry.Status == ObfuscationStatus.Skipped,
+                    $"Property '{prop.Name}' on public class should be skipped (KeepPublicApi), got: {propEntry.Status} ({propEntry.StatusText})");
+            }
         }
     }
 }
