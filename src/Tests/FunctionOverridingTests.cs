@@ -269,6 +269,50 @@ namespace ObfuscarTests
         }
 
         [Fact]
+        public void CheckGenericAbstractMethodsGetDifferentNames()
+        {
+            // Regression test for issue #485: two methods with the same parameter signature in a generic
+            // abstract class must not be renamed to the same obfuscated name, which causes infinite recursion.
+            string outputPath = TestHelper.OutputPath;
+            string xml = string.Format(
+                @"<?xml version='1.0'?>" +
+                @"<Obfuscator>" +
+                @"<Var name='InPath' value='{0}' />" +
+                @"<Var name='OutPath' value='{1}' />" +
+                @"<Var name='KeepPublicApi' value='true' />" +
+                @"<Var name='HidePrivateApi' value='true' />" +
+                @"<Var name='ReuseNames' value='false' />" +
+                @"<Module file='$(InPath){2}AssemblyWithGenericAbstractMethods.dll' />" +
+                @"</Obfuscator>", TestHelper.InputPath, outputPath, Path.DirectorySeparatorChar);
+
+            Obfuscator item = TestHelper.BuildAndObfuscate(
+                "AssemblyWithGenericAbstractMethods", string.Empty, xml, useNetFramework: false);
+            ObfuscationMap map = item.Mapping;
+
+            string assmName = "AssemblyWithGenericAbstractMethods.dll";
+            AssemblyDefinition inAssmDef = AssemblyDefinition.ReadAssembly(
+                Path.Combine(TestHelper.InputPath, assmName));
+
+            TypeDefinition abstractType = inAssmDef.MainModule.GetType("TestClasses.AbstractReadService`3");
+            MethodDefinition checkRequest = FindByName(abstractType, "CheckRequest");
+            MethodDefinition checkRequestInner = FindByName(abstractType, "CheckRequestInner");
+
+            ObfuscatedThing checkRequestEntry = map.GetMethod(new MethodKey(checkRequest));
+            ObfuscatedThing checkRequestInnerEntry = map.GetMethod(new MethodKey(checkRequestInner));
+
+            // Both methods should be renamed (not skipped)
+            Assert.True(checkRequestEntry.Status == ObfuscationStatus.Renamed,
+                $"CheckRequest should be renamed, got: {checkRequestEntry.Status} ({checkRequestEntry.StatusText})");
+            Assert.True(checkRequestInnerEntry.Status == ObfuscationStatus.Renamed ||
+                        checkRequestInnerEntry.Status == ObfuscationStatus.WillRename,
+                $"CheckRequestInner should be renamed, got: {checkRequestInnerEntry.Status} ({checkRequestInnerEntry.StatusText})");
+
+            // They must NOT share the same obfuscated name — that causes infinite recursion
+            Assert.True(checkRequestEntry.StatusText != checkRequestInnerEntry.StatusText,
+                $"CheckRequest and CheckRequestInner must not be renamed to the same name '{checkRequestEntry.StatusText}'");
+        }
+
+        [Fact]
         public void CheckClosedMethodOverrideGenericMethod()
         {
             string outputPath = TestHelper.OutputPath;
