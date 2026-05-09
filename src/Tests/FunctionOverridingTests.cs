@@ -229,6 +229,46 @@ namespace ObfuscarTests
         }
 
         [Fact]
+        public void CheckAbstractExternalBaseClassOverridesNotRenamed()
+        {
+            // Regression test for issue #549: internal class overriding abstract members of an
+            // external base class (e.g. System.IO.Stream) must not have those overrides renamed
+            // in .NET Core/.NET 5+ builds, matching .NET Framework behavior.
+            string outputPath = TestHelper.OutputPath;
+            string xml = string.Format(
+                @"<?xml version='1.0'?>" +
+                @"<Obfuscator>" +
+                @"<Var name='InPath' value='{0}' />" +
+                @"<Var name='OutPath' value='{1}' />" +
+                @"<Var name='KeepPublicApi' value='false' />" +
+                @"<Var name='HidePrivateApi' value='true' />" +
+                @"<Module file='$(InPath){2}AssemblyWithAbstractBaseOverrides.dll' />" +
+                @"</Obfuscator>", TestHelper.InputPath, outputPath, Path.DirectorySeparatorChar);
+
+            Obfuscator item = TestHelper.BuildAndObfuscate(
+                "AssemblyWithAbstractBaseOverrides", string.Empty, xml, useNetFramework: false);
+            ObfuscationMap map = item.Mapping;
+
+            string assmName = "AssemblyWithAbstractBaseOverrides.dll";
+            AssemblyDefinition inAssmDef = AssemblyDefinition.ReadAssembly(
+                Path.Combine(TestHelper.InputPath, assmName));
+
+            TypeDefinition streamType = inAssmDef.MainModule.GetType("TestClasses.InternalStream");
+
+            string[] overriddenMethodNames = { "get_CanRead", "get_CanSeek", "get_CanWrite", "get_Length",
+                "get_Position", "set_Position", "Flush", "Read", "Seek", "SetLength", "Write" };
+
+            foreach (var methodName in overriddenMethodNames)
+            {
+                MethodDefinition method = FindByName(streamType, methodName);
+                ObfuscatedThing entry = map.GetMethod(new MethodKey(method));
+                Assert.True(
+                    entry.Status == ObfuscationStatus.Skipped,
+                    $"Method '{methodName}' overrides an external base class member and must not be renamed, but got status: {entry.Status} ({entry.StatusText})");
+            }
+        }
+
+        [Fact]
         public void CheckClosedMethodOverrideGenericMethod()
         {
             string outputPath = TestHelper.OutputPath;
