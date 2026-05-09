@@ -39,6 +39,46 @@ namespace ObfuscarTests
         }
 
         [Fact]
+        public void CheckCrossAssemblyEnumDefaultParameterDoesNotCrash()
+        {
+            // Regression test for issue #235: obfuscating two assemblies where one references
+            // the other's enum as a default parameter value must not crash with ResolutionException.
+            // The enum type in the library is renamed; the referencing assembly's constant must
+            // be updated to use the new name, otherwise writing fails.
+            TestHelper.CleanInput();
+            TestHelper.BuildAssemblies(Microsoft.CodeAnalysis.CSharp.LanguageVersion.Latest, false,
+                "AssemblyWithEnumLib", "AssemblyWithEnumUser");
+
+            string inputPath = TestHelper.InputPath;
+            string outputPath = TestHelper.OutputPath;
+            string xml = string.Format(
+                @"<?xml version='1.0'?>" +
+                @"<Obfuscator>" +
+                @"<Var name='InPath' value='{0}' />" +
+                @"<Var name='OutPath' value='{1}' />" +
+                @"<Var name='KeepPublicApi' value='false' />" +
+                @"<Var name='HidePrivateApi' value='true' />" +
+                @"<Module file='$(InPath){2}AssemblyWithEnumLib.dll' />" +
+                @"<Module file='$(InPath){2}AssemblyWithEnumUser.dll' />" +
+                @"</Obfuscator>", inputPath, outputPath, Path.DirectorySeparatorChar);
+
+            // Must complete without throwing ResolutionException
+            var obfuscator = TestHelper.Obfuscate(xml);
+            var map = obfuscator.Mapping;
+
+            // Verify the enum type was actually renamed (not just skipped)
+            var inLib = AssemblyDefinition.ReadAssembly(Path.Combine(inputPath, "AssemblyWithEnumLib.dll"));
+            var enumType = inLib.MainModule.GetType("TestClasses.LibraryMode");
+            var enumEntry = map.GetClass(new TypeKey(enumType));
+            Assert.True(enumEntry.Status == ObfuscationStatus.Renamed,
+                $"LibraryMode enum should be renamed, got: {enumEntry.Status} ({enumEntry.StatusText})");
+
+            // Verify the output assemblies exist
+            Assert.True(File.Exists(Path.Combine(outputPath, "AssemblyWithEnumLib.dll")));
+            Assert.True(File.Exists(Path.Combine(outputPath, "AssemblyWithEnumUser.dll")));
+        }
+
+        [Fact]
         public void CheckGoodDependency()
         {
             string xml = string.Format(
