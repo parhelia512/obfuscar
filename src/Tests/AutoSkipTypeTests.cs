@@ -278,5 +278,60 @@ namespace ObfuscarTests
             var enum1 = map.GetClass(new TypeKey(enumType));
             Assert.True(enum1.Status == ObfuscationStatus.Skipped, "Internal enum is obfuscated");
         }
+
+        [Fact]
+        public void CheckMethodParamRenaming()
+        {
+            // Regression test for issue #217: with KeepPublicApi=true + HidePrivateApi=true,
+            // public method parameters in a public class must be preserved (public API contract),
+            // while private method parameters must be renamed (set to null by obfuscator).
+            // Protected methods are also treated as public API (IsPublic() returns true for
+            // IsFamily/IsFamilyOrAssembly), so their parameters are also preserved — this is the
+            // root cause of the behavior the reporter observed.
+            string inputPath = TestHelper.InputPath;
+            string outputPath = TestHelper.OutputPath;
+            string xml = string.Format(
+                @"<?xml version='1.0'?>" +
+                @"<Obfuscator>" +
+                @"<Var name='InPath' value='{0}' />" +
+                @"<Var name='OutPath' value='{1}' />" +
+                @"<Var name='KeepPublicApi' value='true' />" +
+                @"<Var name='HidePrivateApi' value='true' />" +
+                @"<Module file='$(InPath){2}AssemblyWithMethodParams.dll' />" +
+                @"</Obfuscator>", inputPath, outputPath, Path.DirectorySeparatorChar);
+
+            TestHelper.BuildAndObfuscate("AssemblyWithMethodParams", string.Empty, xml);
+
+            var outAssmDef = AssemblyDefinition.ReadAssembly(Path.Combine(outputPath, "AssemblyWithMethodParams.dll"));
+            var type = outAssmDef.MainModule.GetType("TestClasses.PublicClassWithParams");
+            Assert.NotNull(type);
+
+            MethodDefinition publicMethod = null, protectedMethod = null, privateMethod = null;
+            foreach (var m in type.Methods)
+            {
+                if (m.IsPublic && !m.IsSpecialName) publicMethod = m;
+                else if (m.IsFamily && !m.IsSpecialName) protectedMethod = m;
+                else if (m.IsPrivate && !m.IsSpecialName) privateMethod = m;
+            }
+
+            Assert.NotNull(publicMethod);
+            Assert.NotNull(protectedMethod);
+            Assert.NotNull(privateMethod);
+
+            // Public method parameters must retain their original names (KeepPublicApi)
+            Assert.Equal("firstName", publicMethod.Parameters[0].Name);
+            Assert.Equal("age", publicMethod.Parameters[1].Name);
+
+            // Protected method parameters are also treated as public API (IsPublic() covers IsFamily),
+            // so they are also preserved when KeepPublicApi=true
+            Assert.Equal("familyData", protectedMethod.Parameters[0].Name);
+            Assert.Equal("familyId", protectedMethod.Parameters[1].Name);
+
+            // Private method parameters must be renamed — obfuscator clears their names
+            Assert.True(string.IsNullOrEmpty(privateMethod.Parameters[0].Name),
+                $"Expected private param name to be cleared, got: '{privateMethod.Parameters[0].Name}'");
+            Assert.True(string.IsNullOrEmpty(privateMethod.Parameters[1].Name),
+                $"Expected private param name to be cleared, got: '{privateMethod.Parameters[1].Name}'");
+        }
     }
 }
