@@ -1755,6 +1755,12 @@ namespace Obfuscar
         {
             foreach (AssemblyInfo info in Project.AssemblyList)
             {
+                // Skip the entire assembly when string hiding is globally disabled and no
+                // per-type/per-method force rules are defined. This avoids scanning all method
+                // bodies unnecessarily, which can take minutes on large code bases.
+                if (!Project.Settings.HideStrings && !info.HasForceStringHidingRules)
+                    continue;
+
                 AssemblyDefinition library = info.Definition;
                 StringSqueeze container = new StringSqueeze(library);
 
@@ -2134,6 +2140,13 @@ namespace Obfuscar
                     return;
                 }
 
+                // Check skip rules before scanning the method body — body scanning is O(instruction count)
+                // and dominates runtime on large assemblies when string hiding is disabled.
+                if (info.ShouldSkipStringHiding(new MethodKey(method), project.InheritMap, project.Settings.HideStrings))
+                {
+                    return;
+                }
+
                 List<(int Index, Instruction Instruction)> ldstrInstructions = null;
                 for (int index = 0; index < method.Body.Instructions.Count; index++)
                 {
@@ -2146,11 +2159,6 @@ namespace Obfuscar
                 }
 
                 if (ldstrInstructions == null)
-                {
-                    return;
-                }
-
-                if (info.ShouldSkipStringHiding(new MethodKey(method), project.InheritMap, project.Settings.HideStrings))
                 {
                     return;
                 }

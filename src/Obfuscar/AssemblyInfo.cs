@@ -1222,6 +1222,10 @@ namespace Obfuscar
             return !hidePrivateApi;
         }
 
+        public bool HasForceStringHidingRules =>
+            forceStringHiding.Count > 0 ||
+            forceTypes.OfType<TypeTester>().Any(t => (t.AffectFlags & TypeAffectFlags.AffectString) != 0);
+
         public bool ShouldSkipStringHiding(MethodKey method, InheritMap map, bool projectHideStrings)
         {
             if (method.DeclaringType.IsResourcesType() &&
