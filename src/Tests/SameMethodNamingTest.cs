@@ -20,7 +20,6 @@ namespace ObfuscarTests
                 @"<Var name='OutPath' value='{1}' />" +
                 @"<Var name='HidePrivateApi' value='true' />" +
                 @"<Var name='KeepPublicApi' value='false' />" +
-                @"<Var name='CustomChars' value='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz' />" +
                 @"<Module file='$(InPath){2}SameMethodNamingTest1.dll'>" +
                 @"</Module>" +
                 @"</Obfuscator>", TestHelper.InputPath, outputPath, Path.DirectorySeparatorChar);
@@ -31,7 +30,7 @@ namespace ObfuscarTests
         public static IEnumerable<object[]> ClassNamesToTests => Enumerable.Range(1, 8) // there are only 8 classes
             .Select(x => new object[] {
                 $"Class_{x}"
-                , new string[] { "A", "A", "B" }    // two Method1 and one Method2   
+                , null
                 , new string[] { "Method1", "Method2" }
             })
             .ToList();
