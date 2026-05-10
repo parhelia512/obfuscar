@@ -20,6 +20,7 @@ namespace ObfuscarTests
                 @"<Var name='OutPath' value='{1}' />" +
                 @"<Var name='HidePrivateApi' value='true' />" +
                 @"<Var name='KeepPublicApi' value='false' />" +
+                @"<Var name='CustomChars' value='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz' />" +
                 @"<Module file='$(InPath){2}SameMethodNamingTest1.dll'>" +
                 @"</Module>" +
                 @"</Obfuscator>", TestHelper.InputPath, outputPath, Path.DirectorySeparatorChar);

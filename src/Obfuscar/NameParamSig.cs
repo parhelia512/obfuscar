@@ -96,7 +96,7 @@ namespace Obfuscar
 
         public override string ToString()
         {
-            return string.Format("{0}[{1}]", Name, ParamTypes.Length);
+            return string.Format("{0}[{1}]", Name, base.ToString());
         }
 
         public int CompareTo(NameParamSig other)
