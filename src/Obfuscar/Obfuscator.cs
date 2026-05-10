@@ -1012,8 +1012,12 @@ namespace Obfuscar
                     TypeReference refType = reference.UnrenamedTypeReferences[i];
 
                     // check whether the referencing module references this type...if so,
-                    // rename the reference
-                    if (oldTypeKey.Matches(refType))
+                    // rename the reference.
+                    // For nested types, the parent TypeRef may already be renamed at this point,
+                    // so GetFullName() returns the new parent name. We use GetOriginalFullName()
+                    // from Lextudio.Metadata to get the pre-rename full name.
+                    if (refType.GetOriginalFullName() == unrenamedTypeKey.Fullname ||
+                        oldTypeKey.Matches(refType))
                     {
                         LoggerService.Logger.LogDebug("Found reference to {0} in {1}, updating", oldTypeKey, reference.Name);
                         refType.GetElementType().Namespace = newTypeKey.Namespace;
